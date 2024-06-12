@@ -1,0 +1,16 @@
+[package]
+name = "fliptos"
+version = "1.0.0"
+authors = []
+
+[addresses]
+fliptos = "9ee4495a9a76be1993c68fce69bdd06283b52c6305497c05305bae0598aaed08"
+
+[dev-addresses]
+
+[dependencies.AptosFramework]
+git = "https://github.com/aptos-labs/aptos-core.git"
+rev = "mainnet"
+subdir = "aptos-move/framework/aptos-framework"
+
+[dev-dependencies]
