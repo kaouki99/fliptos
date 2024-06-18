@@ -1,4 +1,8 @@
 module fliptos::coinflip {
+
+    // Module for the Fliptos Coin Flip
+    // Implements the Native Randomness for a provably fair game
+
     use std::error;
     use std::signer;
     use std::vector;
@@ -13,6 +17,7 @@ module fliptos::coinflip {
     const FLIP_MULTIPLIER: u64 = 2;
     const FLIP_FEE_BPS: u64 = 250;
 
+    // treasury that players can play against
     struct Vault has key, store {
         vault_address: account::SignerCapability,
     }
@@ -20,14 +25,14 @@ module fliptos::coinflip {
     public entry fun create_vault(
         deployer: &signer
     ) {
-        // Check deployer doesn't already have a vault
+        // check wallet doesn't already have a vault
         assert!(!exists<Vault>(signer::address_of(deployer)), error::not_found(0));
 
-        // Acquire a signer for the resource account that stores the coin bounty
+        // acquire a signer for the resource account that stores the coins
         let (_, vault_address) = account::create_resource_account(deployer, vector::empty());
         let rsrc_acc_signer  = account::create_signer_with_capability(&vault_address);
 
-        // Initialize an AptosCoin coin store there, which is where the vault APT will be kept
+        // initialize an AptosCoin coin store there, which is where the vault APT will be kept
         coin::register<AptosCoin>(&rsrc_acc_signer);
 
         move_to(deployer, Vault {
@@ -35,8 +40,10 @@ module fliptos::coinflip {
         })
     }
 
+    // add coins to the specified vault
     public entry fun add_coins(
         from: &signer, owner_address: address, amount: u64) acquires Vault {
+
         assert!(exists<Vault>(owner_address), error::not_found(1));
         
         let from_balance: u64 = coin::balance<AptosCoin>(signer::address_of(from));
@@ -49,11 +56,14 @@ module fliptos::coinflip {
         coin::transfer<AptosCoin>(from, rsrc_acc_address, amount);
     }
 
+    // withdraw coins from the vault
     public entry fun withdraw_coins(
         owner: &signer,
         amount: u64
     ) acquires Vault {
         let owner_address = signer::address_of(owner);
+
+        // only vault owner can withdraw from his vault
         assert!(exists<Vault>(owner_address), error::not_found(3));
 
         let vault = borrow_global_mut<Vault>(owner_address);
@@ -70,11 +80,12 @@ module fliptos::coinflip {
     entry fun play(
         player: &signer,
         amount: u64,
-        vault_owner: address
+        vault_owner: address // specifies against which vault player wants to bet
     ) acquires Vault {
 
         let player_address = signer::address_of(player);
 
+        // check vault exists
         assert!(exists<Vault>(vault_owner), error::not_found(1));
         let vault = borrow_global_mut<Vault>(vault_owner);
 
@@ -83,10 +94,13 @@ module fliptos::coinflip {
 
         let (vault_rsrc_acc_signer, vault_rsrc_acc_addr) = get_rsrc_acc(vault);
 
+        // 50% chance to win
         let flip_result = randomness::u64_range(0, 2);
 
         let fee_multiplier = fixed_point32::create_from_rational(10000 + FLIP_FEE_BPS, 10000);
         let amount_with_fees = multiply_u64(amount, fee_multiplier);
+
+        // transfer bet amount + fees to the vault
         coin::transfer<AptosCoin>(player, vault_rsrc_acc_addr, amount_with_fees);
 
         if (flip_result == 1) {
@@ -96,8 +110,10 @@ module fliptos::coinflip {
                 amount_bet: amount
                 });
             
+            // double bet amount
             let payout = amount * FLIP_MULTIPLIER;
 
+            // rewards player
             coin::transfer<AptosCoin>(
                 &vault_rsrc_acc_signer,
                 player_address,
